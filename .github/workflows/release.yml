@@ -1,0 +1,33 @@
+name: Release plugin
+
+# Push a tag like v1.0.1 (matching `version` in _meta.lua) to publish
+# kodevicesync.koplugin.zip as a GitHub release asset. Storefront and the
+# KODeviceSync server both install from that asset.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check tag matches _meta.lua version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          meta=$(sed -n 's/.*version *= *"\([^"]*\)".*/\1/p' _meta.lua)
+          [ "v$meta" = "${GITHUB_REF_NAME}" ] || { echo "_meta.lua says $meta but tag is ${GITHUB_REF_NAME}"; exit 1; }
+      - name: Build zip
+        run: |
+          mkdir -p dist/kodevicesync.koplugin
+          cp *.lua dist/kodevicesync.koplugin/
+          cd dist && zip -r kodevicesync.koplugin.zip kodevicesync.koplugin
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/kodevicesync.koplugin.zip --title "$GITHUB_REF_NAME" --generate-notes
